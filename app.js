@@ -71,6 +71,32 @@
   });
   $("clear-marks").addEventListener("click", () => { marked = []; saveMarks(); renderAlerts(); });
 
+  const SHIP_STATE = { preparing: "בהכנה", in_transit: "בדרך", delayed: "מתעכב", delivered: "נמסר" };
+  const ICON_IN = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 21h16"/></svg>';
+  const ICON_OUT = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M7 8l5-5 5 5"/><path d="M4 21h16"/></svg>';
+  let shipDir = "";
+
+  function renderShipments() {
+    const list = Logic.sortShipments(data.shipments.filter((s) => !shipDir || s.direction === shipDir), TODAY);
+    $("ships").innerHTML = list.map((s) => {
+      const st = Logic.shipmentState(s, TODAY);
+      const d = Logic.daysBetween(TODAY, s.eta);
+      const when = st === "delivered" ? "נמסר" : d < 0 ? "באיחור של " + -d + " ימים" : d === 0 ? "מגיע היום" : "בעוד " + d + " ימים";
+      const inbound = s.direction === "inbound";
+      return `<li class="ship ${st === "delayed" ? "delayed" : ""}">
+        <span class="dir ${inbound ? "" : "out"}" title="${inbound ? "נכנס" : "יוצא"}">${inbound ? ICON_IN : ICON_OUT}</span>
+        <div class="who"><b>${esc(s.party)}</b><span><span class="mono">${esc(s.id)}</span> · ${inbound ? "אל " : "מ"}${esc(s.warehouse)} · ${s.lines} שורות</span></div>
+        <div class="when"><span class="st ${st}">${SHIP_STATE[st]}</span><small>${new Date(s.eta + "T00:00:00").toLocaleDateString("he-IL")} · ${when}</small></div>
+      </li>`;
+    }).join("");
+  }
+
+  document.querySelectorAll(".seg button").forEach((b) => b.addEventListener("click", () => {
+    shipDir = b.dataset.dir;
+    document.querySelectorAll(".seg button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    renderShipments();
+  }));
+
   function fillSelect(id, values) {
     $(id).insertAdjacentHTML("beforeend", values.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join(""));
   }
@@ -84,5 +110,6 @@
 
   renderKpis();
   renderAlerts();
+  renderShipments();
   renderInventory();
 })();
