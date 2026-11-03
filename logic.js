@@ -62,6 +62,20 @@
     return isDelayed(s, today) ? "delayed" : s.status;
   }
 
+  function daysBetween(fromIso, toIso) {
+    return Math.round((Date.parse(toIso + "T00:00:00Z") - Date.parse(fromIso + "T00:00:00Z")) / 86400000);
+  }
+
+  // Delayed first, then open shipments by ETA, delivered last (newest first).
+  function sortShipments(shipments, today) {
+    const rank = { delayed: 0, in_transit: 1, preparing: 2, delivered: 3 };
+    return shipments.slice().sort((a, b) => {
+      const ra = rank[shipmentState(a, today)], rb = rank[shipmentState(b, today)];
+      if (ra !== rb) return ra - rb;
+      return ra === 3 ? (a.eta < b.eta ? 1 : -1) : (a.eta < b.eta ? -1 : a.eta > b.eta ? 1 : 0);
+    });
+  }
+
   function shipmentsByState(shipments, today) {
     const order = ["preparing", "in_transit", "delayed", "delivered"];
     const counts = Object.fromEntries(order.map((k) => [k, 0]));
@@ -69,7 +83,7 @@
     return order.map((state) => ({ state, count: counts[state] }));
   }
 
-  const api = { itemStatus, reorderQty, isDelayed, stockValue, kpis, filterItems, markForOrder, reorderList, valueByCategory, shipmentState, shipmentsByState };
+  const api = { itemStatus, reorderQty, isDelayed, stockValue, kpis, filterItems, markForOrder, reorderList, valueByCategory, shipmentState, shipmentsByState, sortShipments, daysBetween };
   if (typeof module !== "undefined") module.exports = api;
   else root.Logic = api;
 })(this);

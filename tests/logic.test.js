@@ -51,6 +51,17 @@ test("reorder list: only low/out items, out of stock first, with qty and cost", 
   assert.deepStrictEqual([list[0].qty, list[0].cost], [100, 200]);
 });
 
+test("shipments: delayed first, delivered last", () => {
+  const ships = [
+    { id: "D", status: "delivered", eta: "2026-11-01" },
+    { id: "T", status: "in_transit", eta: "2026-11-05" },
+    { id: "L", status: "in_transit", eta: "2026-11-01" },
+    { id: "P", status: "preparing", eta: "2026-11-04" },
+  ];
+  assert.deepStrictEqual(L.sortShipments(ships, TODAY).map((s) => s.id), ["L", "T", "P", "D"]);
+  assert.strictEqual(L.daysBetween("2026-11-01", TODAY), 2);
+});
+
 test("mock data: same seed gives the same data", () => {
   assert.deepStrictEqual(createData(42, TODAY), createData(42, TODAY));
   const d = createData(42, TODAY);
