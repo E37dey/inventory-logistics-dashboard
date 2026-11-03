@@ -97,6 +97,18 @@
     renderShipments();
   }));
 
+  function renderCharts() {
+    const cats = Logic.valueByCategory(data.items);
+    const max = Math.max(...cats.map((c) => c.value), 1);
+    $("chart-cat").innerHTML = cats.map((c) =>
+      `<div class="hbar"><span>${esc(c.category)}</span><div class="track"><div class="fill" style="width:${Math.max(2, (c.value / max) * 100)}%"></div><span class="val">₪${ils(c.value)}</span></div></div>`).join("");
+    const states = Logic.shipmentsByState(data.shipments, TODAY);
+    const top = Math.max(...states.map((s) => s.count), 1);
+    $("chart-ship-total").textContent = data.shipments.length + " משלוחים";
+    $("chart-ship").innerHTML = states.map((s) =>
+      `<div class="vbar ${s.state}"><span class="n">${s.count}</span><div class="col" style="height:${(s.count / top) * 140}px"></div><span class="lbl">${SHIP_STATE[s.state]}</span></div>`).join("");
+  }
+
   function fillSelect(id, values) {
     $(id).insertAdjacentHTML("beforeend", values.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join(""));
   }
@@ -111,5 +123,6 @@
   renderKpis();
   renderAlerts();
   renderShipments();
+  renderCharts();
   renderInventory();
 })();
