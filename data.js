@@ -72,7 +72,72 @@
         eta: addDays(today, offset),
       });
     }
-    return { items, shipments, warehouses: WAREHOUSES.slice(), categories: CATALOG.map((c) => c[0]) };
+    const base = { items, shipments, warehouses: WAREHOUSES.slice(), categories: CATALOG.map((c) => c[0]) };
+    return extendV2(base, seed, today);
+  }
+
+  // ---- v2 (SPEC "גרסה 2"): extra fields from a second generator, so v1 values stay identical ----
+  const CITY = {
+    "חיפה": [32.794, 34.989], "אשדוד": [31.804, 34.655], "עפולה": [32.607, 35.289],
+    "נתניה": [32.321, 34.853], "רמלה": [31.929, 34.866], "באר שבע": [31.252, 34.791],
+    "כרמיאל": [32.919, 35.304], "יקנעם": [32.659, 35.105], "קריית גת": [31.61, 34.764],
+    "פתח תקווה": [32.087, 34.887],
+  };
+  const SUPPLIER_INFO = {
+    "מתכות הצפון": { city: "כרמיאל", leadTime: 5 }, "יבוא תעשייתי בע״מ": { city: "אשדוד", leadTime: 12 },
+    "אלקטרו-פרו": { city: "פתח תקווה", leadTime: 7 }, "פלסט-אור": { city: "נתניה", leadTime: 4 },
+    "אריזות המרכז": { city: "רמלה", leadTime: 3 },
+  };
+  const CUSTOMER_CITY = { "מפעל גליל מכונות": "כרמיאל", "אגרו-טק עמק": "יקנעם", "מתקני מים בע״מ": "רמלה", "רובוטיקה דרום": "באר שבע", "ש.א. הנדסה": "קריית גת" };
+  const USAGE = { "ברגים ואומים": [3, 12], "מסבים": [1, 4], "צנרת ואביזרים": [1, 6], "חשמל ובקרה": [0.5, 3], "אריזה": [2, 9] };
+  const AISLE = { "ברגים ואומים": "A", "מסבים": "B", "צנרת ואביזרים": "C", "חשמל ובקרה": "D", "אריזה": "E" };
+  const CAPACITY = { "חיפה": 420, "אשדוד": 560, "עפולה": 300 };
+
+  function extendV2(d, seed, today) {
+    const r = rng(seed ^ 0x9e3779b9);
+    d.items.forEach((it, k) => {
+      const [lo, hi] = USAGE[it.category];
+      it.dailyUsage = Math.round((lo + r() * (hi - lo)) * 10) / 10;
+      it.bin = AISLE[it.category] + "-" + String(1 + (k % 12)).padStart(2, "0") + "-" + (1 + Math.floor(r() * 4));
+      it.leadTime = SUPPLIER_INFO[it.supplier].leadTime;
+      // 30 days back from today: each day stock = next day + that day's usage, minus a receipt when it overflows max
+      const hist = [it.onHand];
+      let cur = it.onHand;
+      for (let day = 1; day <= 30; day++) {
+        const used = Math.max(0, Math.round(it.dailyUsage * (0.6 + r() * 0.8)));
+        let prev = cur + used;
+        while (prev > it.maxStock) prev -= it.moq * 2;
+        cur = Math.max(0, prev);
+        hist.push(cur);
+      }
+      it.history = hist.reverse(); // index 0 = 30 days ago, index 30 = today
+    });
+    d.shipments.forEach((s) => {
+      const info = SUPPLIER_INFO[s.party];
+      s.from = s.direction === "inbound" ? info.city : s.warehouse;
+      s.to = s.direction === "inbound" ? s.warehouse : CUSTOMER_CITY[s.party];
+      if (s.status === "delivered") s.deliveredOn = r() < 0.3 ? addDays(s.eta, 1 + Math.floor(r() * 3)) : s.eta;
+    });
+    // closed inbound orders of the last 90 days, for supplier performance
+    d.supplyHistory = [];
+    Object.keys(SUPPLIER_INFO).forEach((name) => {
+      const info = SUPPLIER_INFO[name];
+      const n = 6 + Math.floor(r() * 6);
+      for (let i = 0; i < n; i++) {
+        const ordered = addDays(today, -90 + Math.floor(r() * 80));
+        const promised = addDays(ordered, info.leadTime);
+        const late = r() < (name === "יבוא תעשייתי בע״מ" ? 0.45 : 0.15) ? 1 + Math.floor(r() * 5) : 0;
+        d.supplyHistory.push({ supplier: name, ordered, promised, delivered: addDays(promised, late) });
+      }
+    });
+    d.warehouseInfo = d.warehouses.map((w) => {
+      const pallets = d.items.filter((i) => i.warehouse === w).reduce((s, i) => s + Math.ceil(i.onHand / i.moq), 0);
+      return { name: w, city: w, capacity: CAPACITY[w], occupied: Math.min(CAPACITY[w], Math.round(CAPACITY[w] * (0.55 + r() * 0.4)) + pallets) };
+    });
+    d.suppliers = Object.keys(SUPPLIER_INFO).map((name) => ({ name, city: SUPPLIER_INFO[name].city, leadTime: SUPPLIER_INFO[name].leadTime }));
+    d.cities = CITY;
+    d.today = today;
+    return d;
   }
 
   const api = { createData, addDays };
