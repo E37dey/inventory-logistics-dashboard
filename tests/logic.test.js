@@ -44,6 +44,13 @@ test("marking for order twice adds the item once", () => {
   assert.deepStrictEqual(L.markForOrder(once, "A-1"), ["A-1"]);
 });
 
+test("reorder list: only low/out items, out of stock first, with qty and cost", () => {
+  const items = [item({ sku: "OK", onHand: 80 }), item({ sku: "LOW", onHand: 15 }), item({ sku: "OUT", onHand: 0 })];
+  const list = L.reorderList(items);
+  assert.deepStrictEqual(list.map((r) => r.item.sku), ["OUT", "LOW"]);
+  assert.deepStrictEqual([list[0].qty, list[0].cost], [100, 200]);
+});
+
 test("mock data: same seed gives the same data", () => {
   assert.deepStrictEqual(createData(42, TODAY), createData(42, TODAY));
   const d = createData(42, TODAY);

@@ -44,6 +44,13 @@
     return marked.includes(sku) ? marked : marked.concat(sku);
   }
 
+  // Items to reorder: out of stock first, then the lowest stock relative to the reorder point.
+  function reorderList(items) {
+    return items.filter((i) => itemStatus(i) !== "ok")
+      .map((i) => ({ item: i, qty: reorderQty(i), cost: Math.round(reorderQty(i) * i.unitPrice) }))
+      .sort((a, b) => a.item.onHand / a.item.reorderPoint - b.item.onHand / b.item.reorderPoint);
+  }
+
   function valueByCategory(items) {
     const m = new Map();
     items.forEach((i) => m.set(i.category, (m.get(i.category) || 0) + i.onHand * i.unitPrice));
@@ -62,7 +69,7 @@
     return order.map((state) => ({ state, count: counts[state] }));
   }
 
-  const api = { itemStatus, reorderQty, isDelayed, stockValue, kpis, filterItems, markForOrder, valueByCategory, shipmentState, shipmentsByState };
+  const api = { itemStatus, reorderQty, isDelayed, stockValue, kpis, filterItems, markForOrder, reorderList, valueByCategory, shipmentState, shipmentsByState };
   if (typeof module !== "undefined") module.exports = api;
   else root.Logic = api;
 })(this);

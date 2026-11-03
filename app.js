@@ -38,6 +38,39 @@
     }).join("") : `<tr><td colspan="8" class="empty">אין פריטים שמתאימים לסינון</td></tr>`;
   }
 
+  // Marked-for-order list survives a reload when storage is available.
+  let marked = [];
+  try { marked = JSON.parse(localStorage.getItem("marked-for-order") || "[]"); } catch (e) { marked = []; }
+  const saveMarks = () => { try { localStorage.setItem("marked-for-order", JSON.stringify(marked)); } catch (e) { /* storage blocked */ } };
+
+  function renderAlerts() {
+    const list = Logic.reorderList(data.items);
+    $("alerts-count").textContent = list.length + " פריטים";
+    $("alerts").innerHTML = list.map(({ item, qty, cost }) => {
+      const st = Logic.itemStatus(item);
+      const on = marked.includes(item.sku);
+      return `<li class="alert">
+        <div class="what"><span class="name">${esc(item.name)} <span class="pill ${st}">${STATUS[st]}</span></span>
+          <span class="meta"><span class="mono">${esc(item.sku)}</span> · ${esc(item.warehouse)} · במלאי ${item.onHand} מתוך נקודת הזמנה ${item.reorderPoint} · ${esc(item.supplier)}</span></div>
+        <div class="qty"><b>${qty}</b><span>₪${ils(cost)}</span></div>
+        <button type="button" class="mark" data-sku="${esc(item.sku)}" aria-pressed="${on}">${on ? "סומן" : "סמן להזמנה"}</button>
+      </li>`;
+    }).join("");
+    const chosen = list.filter((r) => marked.includes(r.item.sku));
+    $("order-summary").textContent = chosen.length
+      ? "סומנו " + chosen.length + " פריטים · עלות משוערת ₪" + ils(chosen.reduce((s, r) => s + r.cost, 0))
+      : "עוד לא סומנו פריטים להזמנה";
+  }
+
+  $("alerts").addEventListener("click", (e) => {
+    const b = e.target.closest("button.mark");
+    if (!b) return;
+    marked = Logic.markForOrder(marked, b.dataset.sku);
+    saveMarks();
+    renderAlerts();
+  });
+  $("clear-marks").addEventListener("click", () => { marked = []; saveMarks(); renderAlerts(); });
+
   function fillSelect(id, values) {
     $(id).insertAdjacentHTML("beforeend", values.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join(""));
   }
@@ -50,5 +83,6 @@
   $("f-query").addEventListener("input", (e) => { state.query = e.target.value; renderInventory(); });
 
   renderKpis();
+  renderAlerts();
   renderInventory();
 })();
