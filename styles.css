@@ -60,10 +60,10 @@ button { cursor: pointer; }
 
 /* KPIs */
 .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
-.kpi { padding: 16px 18px 12px; display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto auto; column-gap: 12px; }
+.kpi { padding: 16px 18px 12px; display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto auto; column-gap: 12px; }
 .kpi .lbl { grid-column: 1 / -1; color: var(--muted); font-size: 14px; }
 .kpi .num { font-family: var(--display); font-size: 40px; line-height: 1.15; font-variant-numeric: tabular-nums; }
-.kpi .spark { align-self: end; }
+.kpi .spark { align-self: end; justify-self: end; width: 100%; max-width: 96px; height: auto; }
 .kpi .delta { grid-column: 1 / -1; font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
 .kpi .delta b { color: var(--text); font-weight: 600; }
 .kpi.low .num { color: var(--low); } .kpi.bad .num { color: var(--bad); }
