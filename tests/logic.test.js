@@ -62,6 +62,20 @@ test("shipments: delayed first, delivered last", () => {
   assert.strictEqual(L.daysBetween("2026-11-01", TODAY), 2);
 });
 
+test("chart: value by category sorted high to low and sums to stock value", () => {
+  const d = createData(42, TODAY);
+  const rows = L.valueByCategory(d.items);
+  assert.ok(rows.every((r, i) => i === 0 || rows[i - 1].value >= r.value));
+  const sum = rows.reduce((s, r) => s + r.value, 0);
+  assert.ok(Math.abs(sum - L.kpis(d.items, d.shipments, TODAY).stockValue) <= rows.length, "within rounding");
+});
+
+test("chart: shipments by state in fixed order, delayed counted once", () => {
+  const ships = [{ status: "in_transit", eta: "2026-11-01" }, { status: "in_transit", eta: "2026-11-09" }, { status: "delivered", eta: "2026-10-01" }];
+  assert.deepStrictEqual(L.shipmentsByState(ships, TODAY), [
+    { state: "preparing", count: 0 }, { state: "in_transit", count: 1 }, { state: "delayed", count: 1 }, { state: "delivered", count: 1 }]);
+});
+
 test("mock data: same seed gives the same data", () => {
   assert.deepStrictEqual(createData(42, TODAY), createData(42, TODAY));
   const d = createData(42, TODAY);
