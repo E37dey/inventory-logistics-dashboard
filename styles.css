@@ -117,6 +117,11 @@ button { font: inherit; cursor: pointer; min-height: 40px; }
   .grid-2 { grid-template-columns: 1fr; }
   .hbar { grid-template-columns: 96px 1fr; }
   .top h1 { font-size: 22px; }
-  .kpi .value { font-size: 28px; }
+  .alert { grid-template-columns: 1fr auto; }
+  .alert .what { grid-column: 1 / -1; }
+  .alert .name { white-space: normal; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .kpi { padding: 12px; }
+  .kpi .value { font-size: 26px; }
   select, input[type="search"] { min-width: 0; flex: 1 1 140px; }
 }

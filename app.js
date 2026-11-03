@@ -52,7 +52,7 @@
       return `<li class="alert">
         <div class="what"><span class="name">${esc(item.name)} <span class="pill ${st}">${STATUS[st]}</span></span>
           <span class="meta"><span class="mono">${esc(item.sku)}</span> · ${esc(item.warehouse)} · במלאי ${item.onHand} מתוך נקודת הזמנה ${item.reorderPoint} · ${esc(item.supplier)}</span></div>
-        <div class="qty"><b>${qty}</b><span>₪${ils(cost)}</span></div>
+        <div class="qty"><b>${qty} יח׳</b><span>להזמנה · ₪${ils(cost)}</span></div>
         <button type="button" class="mark" data-sku="${esc(item.sku)}" aria-pressed="${on}">${on ? "סומן" : "סמן להזמנה"}</button>
       </li>`;
     }).join("");
