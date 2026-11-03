@@ -81,7 +81,8 @@
     $("ships").innerHTML = list.map((s) => {
       const st = Logic.shipmentState(s, TODAY);
       const d = Logic.daysBetween(TODAY, s.eta);
-      const when = st === "delivered" ? "נמסר" : d < 0 ? "באיחור של " + -d + " ימים" : d === 0 ? "מגיע היום" : "בעוד " + d + " ימים";
+      const when = st === "delivered" ? "נמסר" : d === -1 ? "באיחור של יום" : d < 0 ? "באיחור של " + -d + " ימים"
+        : d === 0 ? "מגיע היום" : d === 1 ? "מגיע מחר" : "בעוד " + d + " ימים";
       const inbound = s.direction === "inbound";
       return `<li class="ship ${st === "delayed" ? "delayed" : ""}">
         <span class="dir ${inbound ? "" : "out"}" title="${inbound ? "נכנס" : "יוצא"}">${inbound ? ICON_IN : ICON_OUT}</span>
