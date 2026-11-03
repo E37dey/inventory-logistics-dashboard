@@ -124,7 +124,107 @@
   }
 
   // ---------- other screens (filled by later requests) ----------
-  function renderInventory() { $("view-inventory").innerHTML = '<p class="note">מסך המלאי בבנייה.</p>'; }
+  // ---------- inventory ----------
+  const COLS = [
+    ["sku", "מק״ט", ""], ["name", "פריט", ""], ["warehouse", "מחסן ומיקום", ""], ["abc", "ABC", ""],
+    ["onHand", "כמות", "n"], ["cover", "ימי מלאי", "n"], ["", "אזילה צפויה", ""], ["value", "שווי", "n"], ["status", "סטטוס", ""], ["", "", ""],
+  ];
+  function renderInventory() {
+    const f = state.filters;
+    const opts = (list, cur) => '<option value="">הכול</option>' + list.map((v) => `<option ${v === cur ? "selected" : ""}>${esc(v)}</option>`).join("");
+    const rows = Logic.sortItems(Logic.filterItems(data.items, f), state.sort.key, state.sort.dir, { abc: ABC });
+    const head = COLS.map(([key, label, cls]) => {
+      if (!key) return `<th class="${cls}">${label}</th>`;
+      const on = state.sort.key === key;
+      const aria = on ? ` aria-sort="${state.sort.dir === "asc" ? "ascending" : "descending"}"` : "";
+      return `<th class="${cls}"${aria}><button type="button" data-sort="${key}">${label}${on ? (state.sort.dir === "asc" ? " ▴" : " ▾") : ""}</button></th>`;
+    }).join("");
+    const body = rows.length ? rows.map((i) => {
+      const st = Logic.itemStatus(i), cover = Logic.daysOfCover(i), out = Logic.stockoutDate(i, TODAY);
+      const fill = Math.min(100, Math.round((i.onHand / i.maxStock) * 100));
+      const color = st === "ok" ? "var(--ok)" : st === "low" ? "var(--low)" : "var(--bad)";
+      return `<tr data-item="${esc(i.sku)}" tabindex="0" aria-label="פרטי ${esc(i.name)}">
+        <td class="code">${esc(i.sku)}</td><td>${esc(i.name)}</td>
+        <td>${esc(i.warehouse)} <span class="code">${esc(i.bin)}</span></td>
+        <td><span class="abc ${ABC[i.sku]}">${ABC[i.sku]}</span></td>
+        <td class="n">${num(i.onHand)} יח׳<span class="mini" aria-hidden="true"><span style="width:${fill}%;background:${color}"></span></span></td>
+        <td class="n">${st === "out" ? "0" : cover} ימים</td>
+        <td>${out ? dshort(out) : "אזל"}</td>
+        <td class="n">${ils(i.onHand * i.unitPrice)}</td>
+        <td><span class="st ${st}">${STATUS[st]}</span></td>
+        <td>${markBtn(i.sku)}</td></tr>`;
+    }).join("") : `<tr><td colspan="${COLS.length}" style="text-align:center;color:var(--muted);padding:28px">אין פריטים שמתאימים לסינון. <button type="button" class="btn quiet" data-clear="1">נקה סינון</button></td></tr>`;
+    const statusChips = [["", "הכול"], ["out", "אזל"], ["low", "נמוך"], ["ok", "תקין"]]
+      .map(([v, l]) => `<button type="button" class="chip" data-status="${v}" aria-pressed="${f.status === v}">${l}</button>`).join("");
+    $("view-inventory").innerHTML = `
+      <div class="toolbar">
+        <label>מחסן<select data-filter="warehouse">${opts(data.warehouses, f.warehouse)}</select></label>
+        <label>קטגוריה<select data-filter="category">${opts(data.categories, f.category)}</select></label>
+        <label>חיפוש בטבלה<input type="search" data-filter="query" value="${esc(f.query)}" placeholder="שם או מק״ט"></label>
+        <div role="group" aria-label="סטטוס" style="display:flex;gap:6px;align-self:end">${statusChips}</div>
+        <span class="grow">${rows.length} מתוך ${data.items.length} פריטים</span>
+      </div>
+      <div class="panel tbl-box"><table class="tbl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  }
+
+  // ---------- item drawer ----------
+  const drawerHost = document.createElement("div");
+  drawerHost.innerHTML = `<div class="scrim" id="scrim" hidden></div>
+    <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" hidden></aside>`;
+  document.body.appendChild(drawerHost);
+  let lastFocus = null;
+  function openDrawer(html) {
+    lastFocus = document.activeElement;
+    $("drawer").innerHTML = html;
+    $("drawer").hidden = false; $("scrim").hidden = false;
+    $("drawer").querySelector(".x").focus();
+  }
+  function closeDrawer() {
+    $("drawer").hidden = true; $("scrim").hidden = true;
+    if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
+  }
+  function itemDrawer(sku) {
+    const i = data.items.find((x) => x.sku === sku);
+    if (!i) return;
+    const st = Logic.itemStatus(i), qty = Logic.reorderQty(i) || i.moq, out = Logic.stockoutDate(i, TODAY);
+    const sp = data.suppliers.find((s) => s.name === i.supplier);
+    openDrawer(`
+      <div class="dh"><div><span class="code">${esc(i.sku)}</span><h2 id="drawer-title">${esc(i.name)}</h2>
+        <div style="margin-top:6px"><span class="st ${st}">${STATUS[st]}</span> <span class="abc ${ABC[i.sku]}" style="margin-inline-start:8px" title="סיווג ABC">${ABC[i.sku]}</span></div></div>
+        <button type="button" class="x" data-close="1" aria-label="סגור">✕</button></div>
+      <div class="db">
+        <div class="facts-grid">
+          <div class="fact"><span>במלאי</span><b>${num(i.onHand)} יח׳</b></div>
+          <div class="fact"><span>נקודת הזמנה</span><b>${num(i.reorderPoint)} יח׳</b></div>
+          <div class="fact"><span>מלאי מקסימלי</span><b>${num(i.maxStock)} יח׳</b></div>
+          <div class="fact"><span>צריכה יומית</span><b>${i.dailyUsage} יח׳</b></div>
+          <div class="fact"><span>ימי מלאי</span><b>${Logic.daysOfCover(i)} ימים</b></div>
+          <div class="fact"><span>אזילה צפויה</span><b>${out ? dshort(out) : "אזל"}</b></div>
+          <div class="fact"><span>מחסן ומדף</span><b>${esc(i.warehouse)} <span class="code">${esc(i.bin)}</span></b></div>
+          <div class="fact"><span>ספק</span><b style="font-size:14px">${esc(i.supplier)}</b></div>
+          <div class="fact"><span>זמן אספקה</span><b>${sp ? sp.leadTime : "?"} ימים</b></div>
+        </div>
+        <div><div style="font-size:14px;margin-bottom:6px">מלאי ב-30 הימים האחרונים</div>
+          <div class="chart">${Charts.itemHistory(i.history, i.reorderPoint, [dshort(Logic.addDays(TODAY, -30)), "היום"])}</div></div>
+        <div class="callout"><div><div style="font-size:14px;color:var(--muted)">הזמנה מוצעת</div>
+          <div style="font-size:20px;font-weight:600">${num(qty)} יח׳, ${ils(qty * i.unitPrice)}</div>
+          <div style="font-size:13px;color:var(--muted)">${st === "ok" ? "הפריט תקין. כמות MOQ אחת אם רוצים להקדים." : "משלים עד המלאי המקסימלי, בכפולות של " + i.moq + "."}</div></div>
+          ${markBtn(i.sku)}</div>
+      </div>`);
+  }
+
+  // ---------- global search ----------
+  function renderResults() {
+    const q = $("q").value.trim().toLowerCase();
+    const box = $("q-results");
+    if (!q) { box.hidden = true; return; }
+    const hits = data.items.filter((i) => i.name.toLowerCase().includes(q) || i.sku.toLowerCase().includes(q)).slice(0, 8);
+    box.innerHTML = hits.length ? hits.map((i) => `<li><button type="button" data-item="${esc(i.sku)}"><span>${esc(i.name)}</span><span class="code">${esc(i.sku)}</span></button></li>`).join("")
+      : '<li style="padding:8px 10px;color:var(--muted)">לא נמצא פריט. נסו מק״ט, למשל BR-1001.</li>';
+    box.hidden = false;
+  }
+  $("q").addEventListener("input", renderResults);
+  $("q").addEventListener("keydown", (e) => { if (e.key === "Escape") { $("q").value = ""; renderResults(); } });
   function renderShipments() { $("view-shipments").innerHTML = '<p class="note">לוח המשלוחים בבנייה.</p>'; }
   function renderSuppliers() { $("view-suppliers").innerHTML = '<p class="note">מסך הספקים בבנייה.</p>'; }
 
@@ -158,16 +258,47 @@
 
   // One delegated click handler for the whole app.
   document.addEventListener("click", (e) => {
-    const t = e.target.closest("[data-mark],[data-attn],[data-wh]");
+    if (!e.target.closest(".search")) $("q-results").hidden = true;
+    const t = e.target.closest("[data-mark],[data-attn],[data-wh],[data-item],[data-sort],[data-status],[data-clear],[data-close],#scrim");
     if (!t) return;
-    if (t.dataset.mark) { toggleMark(t.dataset.mark); return; }
+    if (t.id === "scrim" || t.dataset.close) { closeDrawer(); return; }
+    if (t.dataset.mark) {
+      toggleMark(t.dataset.mark);
+      if (!$("drawer").hidden && $("drawer").querySelector("[data-mark]")) { const b = $("drawer").querySelector("[data-mark]"); const on = marked.includes(b.dataset.mark); b.setAttribute("aria-pressed", on); b.textContent = on ? "בסל" : "הוסף לסל"; }
+      return;
+    }
+    if (t.dataset.item) { $("q-results").hidden = true; itemDrawer(t.dataset.item); return; }
+    if (t.dataset.sort) {
+      const k = t.dataset.sort;
+      state.sort = { key: k, dir: state.sort.key === k && state.sort.dir === "asc" ? "desc" : "asc" };
+      renderInventory(); return;
+    }
+    if (t.dataset.status !== undefined) { state.filters.status = t.dataset.status; renderInventory(); return; }
+    if (t.dataset.clear) { state.filters = { warehouse: "", category: "", status: "", query: "" }; renderInventory(); return; }
     if (t.dataset.attn) { state.attnTab = t.dataset.attn; renderOverview(); return; }
     if (t.dataset.wh) { state.filters = { warehouse: t.dataset.wh, category: "", status: "", query: "" }; location.hash = "#inventory"; }
   });
 
-  // Global search: "/" focuses it from anywhere.
+  // Filters in the inventory toolbar.
+  document.addEventListener("change", (e) => {
+    const k = e.target.dataset && e.target.dataset.filter;
+    if (k && k !== "query") { state.filters[k] = e.target.value; renderInventory(); }
+  });
+  document.addEventListener("input", (e) => {
+    if (e.target.dataset && e.target.dataset.filter === "query") {
+      state.filters.query = e.target.value;
+      const pos = e.target.selectionStart;
+      renderInventory();
+      const el = document.querySelector('[data-filter="query"]');
+      el.focus(); el.setSelectionRange(pos, pos);
+    }
+  });
+
+  // Keyboard: "/" focuses search, Esc closes the drawer, Enter on a table row opens it.
   document.addEventListener("keydown", (e) => {
-    if (e.key === "/" && document.activeElement.tagName !== "INPUT") { e.preventDefault(); $("q").focus(); }
+    if (e.key === "/" && !/INPUT|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); $("q").focus(); }
+    if (e.key === "Escape" && !$("drawer").hidden) closeDrawer();
+    if (e.key === "Enter" && document.activeElement.matches("tr[data-item]")) itemDrawer(document.activeElement.dataset.item);
   });
 
   route();
