@@ -225,8 +225,74 @@
   }
   $("q").addEventListener("input", renderResults);
   $("q").addEventListener("keydown", (e) => { if (e.key === "Escape") { $("q").value = ""; renderResults(); } });
-  function renderShipments() { $("view-shipments").innerHTML = '<p class="note">לוח המשלוחים בבנייה.</p>'; }
-  function renderSuppliers() { $("view-suppliers").innerHTML = '<p class="note">מסך הספקים בבנייה.</p>'; }
+  // ---------- shipments board ----------
+  const STATE_COLOR = { preparing: "var(--line)", in_transit: "var(--signal)", delayed: "var(--bad)", delivered: "var(--ok)" };
+  function renderShipments() {
+    const list = data.shipments.filter((s) => !state.shipDir || s.direction === state.shipDir);
+    const byState = Logic.shipmentsByState(list, TODAY);
+    const total = list.length || 1;
+    const cols = ["preparing", "in_transit", "delayed", "delivered"].map((st) => {
+      const cards = Logic.sortShipments(list, TODAY).filter((s) => Logic.shipmentState(s, TODAY) === st).map((s) => {
+        const d = Logic.daysBetween(TODAY, s.eta);
+        const when = st === "delivered" ? "נמסר " + dshort(s.deliveredOn || s.eta) : d === -1 ? "באיחור של יום" : d < 0 ? "באיחור של " + -d + " ימים" : d === 0 ? "מגיע היום" : d === 1 ? "מגיע מחר" : "מגיע ב-" + dshort(s.eta);
+        return `<article class="card ${st === "delayed" ? "late" : ""}">
+          <div style="display:flex;justify-content:space-between;align-items:center"><span class="code">${esc(s.id)}</span><span class="dir">${s.direction === "inbound" ? "נכנס" : "יוצא"}</span></div>
+          <div class="who">${esc(s.party)}</div>
+          <div class="path">${esc(s.from)} <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-label="אל"><path d="M19 12H5"/><path d="M11 18l-6-6 6-6"/></svg> ${esc(s.to)}</div>
+          <div class="foot"><span>${s.lines} שורות</span><span>${when}</span></div></article>`;
+      }).join("") || '<div class="empty-state" style="padding:20px 6px">אין משלוחים במצב הזה.</div>';
+      const n = byState.find((b) => b.state === st).count;
+      return `<section class="col" aria-label="${SHIP[st]}"><h3><span class="st ${st}">${SHIP[st]}</span><span class="badge">${n}</span></h3>${cards}</section>`;
+    }).join("");
+    const dirBtn = (v, l) => `<button type="button" data-dir="${v}" aria-pressed="${state.shipDir === v}">${l}</button>`;
+    $("view-shipments").innerHTML = `
+      <div class="panel" style="padding:16px 18px;margin-bottom:18px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+          <h2 style="margin:0;font-size:16px;font-weight:600">משלוחים לפי מצב</h2>
+          <div class="tabs" role="group" aria-label="כיוון">${dirBtn("", "הכול")}${dirBtn("inbound", "נכנסים")}${dirBtn("outbound", "יוצאים")}</div></div>
+        <div class="statusbar" role="img" aria-label="${byState.map((b) => SHIP[b.state] + " " + b.count).join(", ")}">${byState.map((b) => `<span style="width:${(b.count / total) * 100}%;background:${STATE_COLOR[b.state]}"></span>`).join("")}</div>
+        <div class="key">${byState.map((b) => `<span><i style="background:${STATE_COLOR[b.state]}"></i>${SHIP[b.state]} ${b.count}</span>`).join("")}<span>סה״כ ${list.length} משלוחים</span></div>
+      </div>
+      <div class="board">${cols}</div>`;
+  }
+
+  // ---------- suppliers ----------
+  function renderSuppliers() {
+    const rows = Logic.supplierStats(data);
+    $("view-suppliers").innerHTML = `
+      <div class="panel tbl-box"><table class="tbl" style="cursor:default">
+        <thead><tr><th style="padding:10px">ספק</th><th style="padding:10px">עיר</th><th style="padding:10px">אספקה בזמן (90 יום)</th><th class="n" style="padding:10px">זמן אספקה ממוצע</th><th class="n" style="padding:10px">משלוחים פתוחים</th><th class="n" style="padding:10px">פריטים שהוא מספק</th><th class="n" style="padding:10px">שווי במלאי</th></tr></thead>
+        <tbody>${rows.map((s) => `<tr style="cursor:default">
+          <td style="font-weight:600">${esc(s.name)} ${s.onTimeRate < 80 ? '<span class="flag">מתחת ל-80% בזמן</span>' : ""}</td>
+          <td>${esc(s.city)}</td>
+          <td><span class="pct"><span class="track"><span style="width:${s.onTimeRate}%"></span></span>${s.onTimeRate}% מתוך ${s.orders} הזמנות</span></td>
+          <td class="n">${s.avgLead} ימים</td><td class="n">${s.openShipments}</td><td class="n">${s.itemCount}</td><td class="n">${ils(s.itemsValue)}</td></tr>`).join("")}</tbody>
+      </table></div>
+      <p style="color:var(--muted);font-size:13px;margin-top:12px">ממוין מהספק הכי פחות אמין. ״בזמן״ = נמסר עד התאריך שהובטח.</p>`;
+  }
+
+  // ---------- basket drawer ----------
+  function basketDrawer() {
+    const b = Logic.basket(data.items, marked);
+    const groups = b.groups.map((g) => `<section class="group"><h3><span>${esc(g.supplier)}</span><span>${ils(g.total)}</span></h3>
+      ${g.lines.map((l) => `<div class="line"><div><div>${esc(l.item.name)}</div><div class="code">${esc(l.item.sku)}, ${esc(l.item.warehouse)}</div></div>
+        <span>${num(l.qty)} יח׳, ${ils(l.cost)}</span>
+        <button type="button" class="rm" data-unmark="${esc(l.item.sku)}" aria-label="הסר את ${esc(l.item.name)} מהסל">✕</button></div>`).join("")}</section>`).join("");
+    openDrawer(`
+      <div class="dh"><div><h2 id="drawer-title">סל הזמנה</h2><div style="color:var(--muted);font-size:14px;margin-top:4px">${b.count} פריטים מ-${b.groups.length} ספקים</div></div>
+        <button type="button" class="x" data-close="1" aria-label="סגור">✕</button></div>
+      <div class="db">${b.count ? groups : '<div class="empty-state">הסל ריק.<br>הוסיפו פריטים מ״דורש טיפול״ בסקירה, או מטבלת המלאי.</div>'}</div>
+      <div class="df"><div><div style="color:var(--muted);font-size:13px">סה״כ משוער</div><div style="font-size:20px;font-weight:600">${ils(b.total)}</div></div>
+        <div style="display:flex;gap:8px"><button type="button" class="btn quiet" data-empty="1" ${b.count ? "" : "disabled"}>רוקן סל</button>
+        <button type="button" class="btn solid" data-csv="1" ${b.count ? "" : "disabled"}>ייצא CSV לרכש</button></div></div>`);
+  }
+  function downloadCsv() {
+    const csv = Logic.basketCsv(Logic.basket(data.items, marked));
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    a.download = "הזמנת-רכש-" + TODAY + ".csv";
+    document.body.appendChild(a); a.click(); a.remove();
+  }
 
   // ---------- shell ----------
   function renderChrome() {
@@ -259,9 +325,14 @@
   // One delegated click handler for the whole app.
   document.addEventListener("click", (e) => {
     if (!e.target.closest(".search")) $("q-results").hidden = true;
-    const t = e.target.closest("[data-mark],[data-attn],[data-wh],[data-item],[data-sort],[data-status],[data-clear],[data-close],#scrim");
+    const t = e.target.closest("[data-mark],[data-attn],[data-wh],[data-item],[data-sort],[data-status],[data-clear],[data-close],[data-dir],[data-unmark],[data-empty],[data-csv],#basket-open,#scrim");
     if (!t) return;
     if (t.id === "scrim" || t.dataset.close) { closeDrawer(); return; }
+    if (t.id === "basket-open") { basketDrawer(); return; }
+    if (t.dataset.unmark) { marked = marked.filter((s) => s !== t.dataset.unmark); saveMarks(); renderAll(); basketDrawer(); return; }
+    if (t.dataset.empty) { marked = []; saveMarks(); renderAll(); basketDrawer(); return; }
+    if (t.dataset.csv) { downloadCsv(); return; }
+    if (t.dataset.dir !== undefined) { state.shipDir = t.dataset.dir; renderShipments(); return; }
     if (t.dataset.mark) {
       toggleMark(t.dataset.mark);
       if (!$("drawer").hidden && $("drawer").querySelector("[data-mark]")) { const b = $("drawer").querySelector("[data-mark]"); const on = marked.includes(b.dataset.mark); b.setAttribute("aria-pressed", on); b.textContent = on ? "בסל" : "הוסף לסל"; }
