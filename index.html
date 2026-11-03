@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מלאי ולוגיסטיקה · דאשבורד מחסנים</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main class="wrap">
+  <header class="top">
+    <div>
+      <div class="tag"><span class="live" aria-hidden="true"></span><span>INVENTORY · LOGISTICS</span><span id="today"></span></div>
+      <h1>מלאי ולוגיסטיקה</h1>
+      <div class="sub">שלושה מחסנים · חלקי חילוף · נתוני דמה</div>
+    </div>
+  </header>
+
+  <section class="kpis" id="kpis" aria-label="מדדים"></section>
+
+  <section class="panel" aria-labelledby="inv-title">
+    <div class="panel-head">
+      <h2 id="inv-title">מלאי</h2>
+      <div class="filters">
+        <label>חיפוש<input type="search" id="f-query" placeholder="שם או מק״ט"></label>
+        <label>מחסן<select id="f-warehouse"><option value="">הכול</option></select></label>
+        <label>קטגוריה<select id="f-category"><option value="">הכול</option></select></label>
+        <label>סטטוס<select id="f-status"><option value="">הכול</option><option value="ok">תקין</option><option value="low">נמוך</option><option value="out">אזל</option></select></label>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="count" id="inv-count"></div>
+      <div class="table-box">
+        <table>
+          <thead><tr><th>מק״ט</th><th>פריט</th><th>קטגוריה</th><th>מחסן</th><th class="num">כמות</th><th>מול נקודת הזמנה</th><th class="num">שווי ₪</th><th>סטטוס</th></tr></thead>
+          <tbody id="inv-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+<script src="data.js"></script>
+<script src="logic.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
